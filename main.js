@@ -1,5 +1,4 @@
 import express from 'express';
-import mysql from 'mysql2';
 import prisma from './db.js'
 import bodyParser from 'body-parser';
 import api from './api.js'

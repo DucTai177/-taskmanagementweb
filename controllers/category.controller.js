@@ -1,11 +1,21 @@
 import express from 'express';
 import { CategoryModel } from '../models/category.model.js';
+import axios from 'axios'
 const router = express.Router();
 
 
 router.get("/", async (req, res) => {
-    let data = await CategoryModel.findAll()
-    res.json(data)
+
+    axios.get("https://apiportal.rikkei.edu.vn/dashboard/classes-count")
+        .then(res => {
+            console.log("res", res)
+        })
+        .catch(err => {
+            console.log("er", err)
+        })
+
+    // let data = await CategoryModel.findAll()
+    // res.json(data)
 })
 
 

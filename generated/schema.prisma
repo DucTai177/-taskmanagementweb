@@ -4,20 +4,19 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "mongodb"
+  url      = "mongodb+srv://nsohoainiem_db_user:pLq2bZAZA9lUTd6b@cluster0.4yg0ecd.mongodb.net/my_product_mng"
 }
 
 model Category {
-  id       Int       @id @default(autoincrement())
-  title    String
-  status   Boolean
-  products Product[]
+  id     String  @id @default(auto()) @map("_id") @db.ObjectId
+  title  String
+  status Boolean
 }
 
 model Product {
-  id          Int      @id @default(autoincrement())
+  id          String @id @default(auto()) @map("_id") @db.ObjectId
   name        String
   price       Float
-  category_id Int
-  category    Category @relation(fields: [category_id], references: [id])
+  category_id String
 }

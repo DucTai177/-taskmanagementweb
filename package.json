@@ -11,11 +11,10 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
-    "@prisma/adapter-mariadb": "^7.9.1",
-    "@prisma/client": "^7.9.1",
+    "@prisma/client": "^6.9",
+    "axios": "^1.19.0",
     "body-parser": "^2.3.0",
     "express": "^5.2.1",
-    "mysql2": "^3.23.2",
-    "prisma": "^7.9.1"
+    "prisma": "^6.9"
   }
 }

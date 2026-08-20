@@ -11,10 +11,12 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
-    "@prisma/client": "^6.9",
     "axios": "^1.19.0",
     "body-parser": "^2.3.0",
-    "express": "^5.2.1",
-    "prisma": "^6.9"
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "@prisma/client": "^6.19.3",
+    "prisma": "^6.19.3"
   }
 }

@@ -1,6 +1,7 @@
 import express from "express";
 import dotenv from "dotenv";
 import projectRoutes from "./routes/project.route.js";
+import authRoutes from "./routes/auth.route.js";
 
 dotenv.config();
 
@@ -11,6 +12,7 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 
 // Gắn route
+app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/projects", projectRoutes);
 
 app.listen(PORT, () => {

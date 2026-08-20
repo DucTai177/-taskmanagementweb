@@ -98,7 +98,7 @@ export const getProjects = async (req, res) => {
 };
 
 // lấy dự án theo id
-// Xem chi tiết dự án theo ID (F02)
+
 export const getProjectById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -135,6 +135,85 @@ export const getProjectById = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Lỗi server khi lấy chi tiết dự án.",
+      data: error.message,
+    });
+  }
+};
+
+//sửa dự án
+export const updateProject = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, description, startDate, endDate } = req.body;
+
+    // Kiểm tra dự án có không
+    const existingProject = await prisma.project.findUnique({
+      where: { id: Number(id) },
+    });
+
+    if (!existingProject) {
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy dự án để cập nhật.",
+        data: null,
+      });
+    }
+
+    const updatedProject = await prisma.project.update({
+      where: { id: Number(id) },
+      data: {
+        name: name || undefined,
+        description: description !== undefined ? description : undefined,
+        startDate: startDate ? new Date(startDate) : undefined,
+        endDate: endDate ? new Date(endDate) : undefined,
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Cập nhật dự án thành công.",
+      data: updatedProject,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Lỗi server khi cập nhật dự án.",
+      data: error.message,
+    });
+  }
+};
+
+// 2. Xóa dự án
+export const deleteProject = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Kiểm tra dự án có tồn tại trước khi xóa
+    const existingProject = await prisma.project.findUnique({
+      where: { id: Number(id) },
+    });
+
+    if (!existingProject) {
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy dự án để xóa.",
+        data: null,
+      });
+    }
+
+    await prisma.project.delete({
+      where: { id: Number(id) },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Xóa dự án thành công.",
+      data: null,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Lỗi server khi xóa dự án.",
       data: error.message,
     });
   }

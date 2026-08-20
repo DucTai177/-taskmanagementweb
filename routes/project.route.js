@@ -1,9 +1,12 @@
 import express from "express";
-import { createProject } from "../controllers/project.controller.js";
+import {
+  createProject,
+  getProjects,
+} from "../controllers/project.controller.js";
 
 const router = express.Router();
 
-// Định nghĩa phương thức POST để tạo dự án
 router.post("/", createProject);
+router.get("/", getProjects);
 
 export default router;

@@ -96,3 +96,46 @@ export const getProjects = async (req, res) => {
     });
   }
 };
+
+// lấy dự án theo id
+// Xem chi tiết dự án theo ID (F02)
+export const getProjectById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const project = await prisma.project.findUnique({
+      where: { id: Number(id) },
+      include: {
+        owner: {
+          select: { id: true, fullName: true, email: true },
+        },
+        members: {
+          include: {
+            user: { select: { id: true, fullName: true, email: true } },
+          },
+        },
+        tasks: true,
+      },
+    });
+
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy dự án với ID này.",
+        data: null,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Lấy chi tiết dự án thành công.",
+      data: project,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Lỗi server khi lấy chi tiết dự án.",
+      data: error.message,
+    });
+  }
+};

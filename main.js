@@ -1,16 +1,18 @@
-import express from 'express';
-import prisma from './db.js'
-import bodyParser from 'body-parser';
-import api from './api.js'
+import express from "express";
+import dotenv from "dotenv";
+import projectRoutes from "./routes/project.route.js";
 
-const app = express()
-const port = 3000
+dotenv.config();
 
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-app.use(bodyParser.json())
+// Đọc dữ liệu JSON gửi lên từ body
+app.use(express.json());
 
-app.use("/api", api)
+// Gắn route
+app.use("/api/v1/projects", projectRoutes);
 
-app.listen(port, () => {
-    console.log(`Example app listening on port ${port}`)
-})
+app.listen(PORT, () => {
+  console.log(`Server đang chạy tại http://localhost:${PORT}`);
+});

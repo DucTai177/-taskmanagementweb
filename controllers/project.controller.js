@@ -1,30 +1,20 @@
 import prisma from "../db.js";
-
+//tạo tài khoản
 export const createProject = async (req, res) => {
   try {
-    const { name, description, startDate, endDate, ownerId } = req.body;
+    const { name, description, startDate, endDate } = req.body;
+    const currentUserId = req.user.id; // Lấy tự động từ middleware!
 
-    // 1. Kiểm tra đầu vào
-    if (!name || !ownerId) {
-      return res.status(400).json({
-        success: false,
-        message: "Tên dự án (name) và ownerId là bắt buộc.",
-        data: null,
-      });
-    }
-
-    // 2. Lưu vào Database
     const project = await prisma.project.create({
       data: {
         name,
         description,
         startDate: startDate ? new Date(startDate) : null,
         endDate: endDate ? new Date(endDate) : null,
-        ownerId: Number(ownerId),
-        // Tự động thêm owner vào danh sách thành viên dự án
+        ownerId: currentUserId,
         members: {
           create: {
-            userId: Number(ownerId),
+            userId: currentUserId,
             role: "OWNER",
           },
         },
@@ -34,7 +24,6 @@ export const createProject = async (req, res) => {
       },
     });
 
-    // 3. Trả về kết quả
     return res.status(201).json({
       success: true,
       message: "Tạo dự án thành công.",
@@ -214,6 +203,289 @@ export const deleteProject = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Lỗi server khi xóa dự án.",
+      data: error.message,
+    });
+  }
+};
+
+/////////////////////////////////////////////////////////////////////////////////////////////
+//thêm thành viên
+// 1. Thêm thành viên vào dự án (F02)
+export const addMember = async (req, res) => {
+  try {
+    const { id } = req.params; // ID của Project
+    const { userId, role } = req.body; // ID và role của người muốn thêm
+    const currentUserId = req.user.id; // Lấy từ auth middleware
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: "Vui lòng cung cấp userId cần thêm.",
+        data: null,
+      });
+    }
+
+    // 1. Kiểm tra dự án có tồn tại không
+    const project = await prisma.project.findUnique({
+      where: { id: Number(id) },
+    });
+
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy dự án.",
+        data: null,
+      });
+    }
+
+    // 2. Phân quyền: Chỉ chủ sở hữu dự án mới có quyền thêm thành viên
+    if (project.ownerId !== currentUserId) {
+      return res.status(403).json({
+        success: false,
+        message: "Bạn không có quyền thêm thành viên vào dự án này.",
+        data: null,
+      });
+    }
+
+    // 3. Kiểm tra user muốn thêm có tồn tại trong hệ thống không
+    const userExists = await prisma.user.findUnique({
+      where: { id: Number(userId) },
+    });
+
+    if (!userExists) {
+      return res.status(404).json({
+        success: false,
+        message: "Người dùng cần thêm không tồn tại.",
+        data: null,
+      });
+    }
+
+    // 4. Kiểm tra user này đã là thành viên trong dự án chưa
+    const existingMember = await prisma.projectMember.findFirst({
+      where: {
+        projectId: Number(id),
+        userId: Number(userId),
+      },
+    });
+
+    if (existingMember) {
+      return res.status(400).json({
+        success: false,
+        message: "Người dùng này đã là thành viên của dự án.",
+        data: null,
+      });
+    }
+
+    // 5. Thêm thành viên vào bảng ProjectMember
+    const newMember = await prisma.projectMember.create({
+      data: {
+        projectId: Number(id),
+        userId: Number(userId),
+        role: role === "OWNER" ? "OWNER" : "MEMBER",
+      },
+      include: {
+        user: {
+          select: { id: true, fullName: true, email: true },
+        },
+      },
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Thêm thành viên vào dự án thành công.",
+      data: newMember,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Lỗi server khi thêm thành viên.",
+      data: error.message,
+    });
+  }
+};
+
+// 2. Gỡ thành viên khỏi dự án (F02)
+export const removeMember = async (req, res) => {
+  try {
+    const { id, userId } = req.params;
+    const currentUserId = req.user.id;
+
+    // 1. Kiểm tra dự án tồn tại
+    const project = await prisma.project.findUnique({
+      where: { id: Number(id) },
+    });
+
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy dự án.",
+        data: null,
+      });
+    }
+
+    // 2. Phân quyền: Chỉ chủ dự án mới được gỡ thành viên
+    if (project.ownerId !== currentUserId) {
+      return res.status(403).json({
+        success: false,
+        message: "Bạn không có quyền gỡ thành viên khỏi dự án này.",
+        data: null,
+      });
+    }
+
+    // 3. Không cho phép tự gỡ chính mình (chủ dự án)
+    if (Number(userId) === project.ownerId) {
+      return res.status(400).json({
+        success: false,
+        message: "Không thể gỡ chủ dự án khỏi danh sách thành viên.",
+        data: null,
+      });
+    }
+
+    // 4. Xóa bản ghi trong ProjectMember
+    const deleteResult = await prisma.projectMember.deleteMany({
+      where: {
+        projectId: Number(id),
+        userId: Number(userId),
+      },
+    });
+
+    if (deleteResult.count === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Thành viên này không nằm trong dự án.",
+        data: null,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Gỡ thành viên khỏi dự án thành công.",
+      data: null,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Lỗi server khi gỡ thành viên.",
+      data: error.message,
+    });
+  }
+};
+
+///////////////////////////////////////////////////////////////
+// F05: Dashboard & Thống kê Dự án
+export const getProjectDashboard = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const currentUserId = req.user.id;
+
+    // 1. Kiểm tra dự án tồn tại
+    const project = await prisma.project.findUnique({
+      where: { id: Number(id) },
+      include: {
+        members: {
+          include: {
+            user: {
+              select: { id: true, fullName: true, email: true },
+            },
+          },
+        },
+        tasks: {
+          include: {
+            assignee: {
+              select: { id: true, fullName: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy dự án.",
+        data: null,
+      });
+    }
+
+    // 2. Phân quyền: Phải là thành viên dự án mới được xem Dashboard
+    const isMember = project.members.some((m) => m.userId === currentUserId);
+    if (!isMember) {
+      return res.status(403).json({
+        success: false,
+        message: "Bạn không có quyền xem thống kê của dự án này.",
+        data: null,
+      });
+    }
+
+    // 3. Tính toán số liệu thống kê
+    const totalTasks = project.tasks.length;
+
+    // Đếm theo trạng thái
+    const statusCounts = {
+      TODO: 0,
+      INPROGRESS: 0,
+      DONE: 0,
+      CANCELLED: 0,
+    };
+
+    // Đếm theo mức độ ưu tiên
+    const priorityCounts = {
+      LOW: 0,
+      MEDIUM: 0,
+      HIGH: 0,
+      URGENT: 0,
+    };
+
+    project.tasks.forEach((task) => {
+      if (statusCounts[task.status] !== undefined) {
+        statusCounts[task.status]++;
+      }
+      if (priorityCounts[task.priority] !== undefined) {
+        priorityCounts[task.priority]++;
+      }
+    });
+
+    // Tỷ lệ hoàn thành (%)
+    const completionRate =
+      totalTasks > 0
+        ? Number(((statusCounts.DONE / totalTasks) * 100).toFixed(2))
+        : 0;
+
+    // Thống kê phân bổ công việc theo từng thành viên
+    const memberWorkload = project.members.map((member) => {
+      const assignedTasks = project.tasks.filter(
+        (t) => t.assigneeId === member.userId,
+      );
+      const doneTasks = assignedTasks.filter((t) => t.status === "DONE");
+
+      return {
+        userId: member.userId,
+        fullName: member.user.fullName,
+        email: member.user.email,
+        role: member.role,
+        totalAssigned: assignedTasks.length,
+        totalDone: doneTasks.length,
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Lấy dữ liệu Dashboard thành công.",
+      data: {
+        projectId: project.id,
+        projectName: project.name,
+        totalMembers: project.members.length,
+        totalTasks,
+        completionRate: `${completionRate}%`,
+        statusCounts,
+        priorityCounts,
+        memberWorkload,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Lỗi server khi lấy thống kê Dashboard.",
       data: error.message,
     });
   }

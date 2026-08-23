@@ -1,5 +1,6 @@
 import prisma from "../db.js";
 
+// 1. Tạo công việc (F03)
 export const createTask = async (req, res) => {
   try {
     const {
@@ -13,7 +14,6 @@ export const createTask = async (req, res) => {
     } = req.body;
     const currentUserId = req.user.id;
 
-    // 1. Kiểm tra trường bắt buộc
     if (!projectId || !title) {
       return res.status(400).json({
         success: false,
@@ -22,7 +22,6 @@ export const createTask = async (req, res) => {
       });
     }
 
-    // 2. Kiểm tra dự án có tồn tại không
     const project = await prisma.project.findUnique({
       where: { id: Number(projectId) },
     });
@@ -35,7 +34,6 @@ export const createTask = async (req, res) => {
       });
     }
 
-    // 3. Phân quyền: Người tạo task phải là thành viên của dự án
     const isMember = await prisma.projectMember.findFirst({
       where: {
         projectId: Number(projectId),
@@ -51,7 +49,6 @@ export const createTask = async (req, res) => {
       });
     }
 
-    // 4. Nếu có gán người thực hiện (assigneeId), kiểm tra người đó có trong dự án không
     if (assigneeId) {
       const isAssigneeInProject = await prisma.projectMember.findFirst({
         where: {
@@ -70,7 +67,6 @@ export const createTask = async (req, res) => {
       }
     }
 
-    // 5. Tạo Task
     const newTask = await prisma.task.create({
       data: {
         projectId: Number(projectId),
@@ -105,48 +101,52 @@ export const createTask = async (req, res) => {
     });
   }
 };
-/////////////////////////////////////////////////
-// Lấy danh sách Task có hỗ trợ bộ lọc và tìm kiếm (F03)
+
+// 2. Lấy danh sách Task và Phân trang (F04 - page, limit)
 export const getTasks = async (req, res) => {
   try {
-    const { projectId, status, priority, assigneeId, search } = req.query;
+    const { page = 1, limit = 10 } = req.query;
 
-    const where = {};
+    const pageNumber = Math.max(1, Number(page) || 1);
+    const pageSize = Math.max(1, Number(limit) || 10);
+    const skip = (pageNumber - 1) * pageSize;
 
-    if (projectId) where.projectId = Number(projectId);
-    if (status) where.status = status;
-    if (priority) where.priority = priority;
-    if (assigneeId) where.assigneeId = Number(assigneeId);
-
-    if (search) {
-      where.OR = [
-        { title: { contains: search } },
-        { description: { contains: search } },
-      ];
-    }
-
-    const tasks = await prisma.task.findMany({
-      where,
-      include: {
-        project: {
-          select: { id: true, name: true },
+    const [totalRecords, tasks] = await Promise.all([
+      prisma.task.count(),
+      prisma.task.findMany({
+        skip,
+        take: pageSize,
+        orderBy: {
+          createdAt: "desc",
         },
-        assignee: {
-          select: { id: true, fullName: true, email: true },
+        include: {
+          project: {
+            select: { id: true, name: true },
+          },
+          assignee: {
+            select: { id: true, fullName: true, email: true },
+          },
+          creator: {
+            select: { id: true, fullName: true, email: true },
+          },
         },
-        creator: {
-          select: { id: true, fullName: true, email: true },
-        },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+      }),
+    ]);
+
+    const totalPages = Math.ceil(totalRecords / pageSize);
 
     return res.status(200).json({
       success: true,
       message: "Lấy danh sách công việc thành công.",
-      data: tasks,
+      data: {
+        tasks,
+        pagination: {
+          page: pageNumber,
+          limit: pageSize,
+          totalRecords,
+          totalPages,
+        },
+      },
     });
   } catch (error) {
     return res.status(500).json({
@@ -156,7 +156,8 @@ export const getTasks = async (req, res) => {
     });
   }
 };
-///////////////////////////////////////////////////////////
+
+// 3. Xem chi tiết 1 Task (F03)
 export const getTaskById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -198,8 +199,7 @@ export const getTaskById = async (req, res) => {
   }
 };
 
-/////////////////////////////////////////
-// Cập nhật Task (F03)
+// 4. Cập nhật Task (F03)
 export const updateTask = async (req, res) => {
   try {
     const { id } = req.params;
@@ -207,7 +207,6 @@ export const updateTask = async (req, res) => {
       req.body;
     const currentUserId = req.user.id;
 
-    // 1. Kiểm tra task có tồn tại không
     const task = await prisma.task.findUnique({
       where: { id: Number(id) },
       include: { project: true },
@@ -221,7 +220,6 @@ export const updateTask = async (req, res) => {
       });
     }
 
-    // 2. Phân quyền: Người sửa phải là thành viên trong dự án
     const isMember = await prisma.projectMember.findFirst({
       where: {
         projectId: task.projectId,
@@ -237,7 +235,6 @@ export const updateTask = async (req, res) => {
       });
     }
 
-    // 3. Nếu có cập nhật assigneeId, kiểm tra người mới có thuộc dự án không
     if (assigneeId) {
       const isAssigneeInProject = await prisma.projectMember.findFirst({
         where: {
@@ -255,7 +252,6 @@ export const updateTask = async (req, res) => {
       }
     }
 
-    // 4. Tiến hành cập nhật
     const updatedTask = await prisma.task.update({
       where: { id: Number(id) },
       data: {
@@ -295,14 +291,73 @@ export const updateTask = async (req, res) => {
   }
 };
 
-////////////////////////////////////////////////////////////////
-// Xóa Task (F03)
+// 5. Cập nhật nhanh trạng thái (F03)
+export const updateTaskStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    const currentUserId = req.user.id;
+
+    if (!status) {
+      return res.status(400).json({
+        success: false,
+        message: "Trạng thái status là bắt buộc.",
+        data: null,
+      });
+    }
+
+    const task = await prisma.task.findUnique({
+      where: { id: Number(id) },
+    });
+
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy công việc.",
+        data: null,
+      });
+    }
+
+    const isMember = await prisma.projectMember.findFirst({
+      where: {
+        projectId: task.projectId,
+        userId: currentUserId,
+      },
+    });
+
+    if (!isMember) {
+      return res.status(403).json({
+        success: false,
+        message: "Bạn không có quyền cập nhật trạng thái công việc này.",
+        data: null,
+      });
+    }
+
+    const updatedTask = await prisma.task.update({
+      where: { id: Number(id) },
+      data: { status },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Cập nhật nhanh trạng thái công việc thành công.",
+      data: updatedTask,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Lỗi server khi cập nhật trạng thái.",
+      data: error.message,
+    });
+  }
+};
+
+// 6. Xóa Task (F03)
 export const deleteTask = async (req, res) => {
   try {
     const { id } = req.params;
     const currentUserId = req.user.id;
 
-    // 1. Kiểm tra task tồn tại
     const task = await prisma.task.findUnique({
       where: { id: Number(id) },
       include: { project: true },
@@ -316,7 +371,6 @@ export const deleteTask = async (req, res) => {
       });
     }
 
-    // 2. Phân quyền: Phải là Chủ dự án (Owner) hoặc Người tạo task (Creator)
     const isOwner = task.project.ownerId === currentUserId;
     const isCreator = task.createdById === currentUserId;
 
@@ -329,7 +383,6 @@ export const deleteTask = async (req, res) => {
       });
     }
 
-    // 3. Thực hiện xóa task
     await prisma.task.delete({
       where: { id: Number(id) },
     });
@@ -343,63 +396,6 @@ export const deleteTask = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Lỗi server khi xóa công việc.",
-      data: error.message,
-    });
-  }
-};
-
-// // F04 - Lấy danh sách Task và Phân trang (page, limit)
-export const getPage = async (req, res) => {
-  try {
-    const { page = 1, limit = 10 } = req.query;
-
-    const pageNumber = Math.max(1, Number(page) || 1);
-    const pageSize = Math.max(1, Number(limit) || 10);
-    const skip = (pageNumber - 1) * pageSize;
-
-    // 1. Đếm tổng số bản ghi và lấy dữ liệu theo trang
-    const [totalRecords, tasks] = await Promise.all([
-      prisma.task.count(),
-      prisma.task.findMany({
-        skip,
-        take: pageSize,
-        orderBy: {
-          createdAt: 'desc',
-        },
-        include: {
-          project: {
-            select: { id: true, name: true },
-          },
-          assignee: {
-            select: { id: true, fullName: true, email: true },
-          },
-          creator: {
-            select: { id: true, fullName: true, email: true },
-          },
-        },
-      }),
-    ]);
-
-    const totalPages = Math.ceil(totalRecords / pageSize);
-
-    // 2. Trả về kết quả kèm tổng số bản ghi và tổng số trang
-    return res.status(200).json({
-      success: true,
-      message: 'Lấy danh sách công việc thành công.',
-      data: {
-        tasks,
-        pagination: {
-          page: pageNumber,
-          limit: pageSize,
-          totalRecords,
-          totalPages,
-        },
-      },
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: 'Lỗi server khi lấy danh sách công việc.',
       data: error.message,
     });
   }

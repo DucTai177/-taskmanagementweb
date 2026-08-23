@@ -5,7 +5,7 @@ import {
   getTaskById,
   updateTask,
   deleteTask,
-  
+  updateTaskStatus,
 } from "../controllers/task.controller.js";
 import { verifyToken } from "../middlewares/auth.middleware.js";
 
@@ -15,6 +15,7 @@ router.post("/", verifyToken, createTask);
 router.get("/", verifyToken, getTasks); //
 router.get("/:id", verifyToken, getTaskById);
 router.put("/:id", verifyToken, updateTask);
+router.patch("/:id/status", verifyToken, updateTaskStatus);
 
 router.delete("/:id", verifyToken, deleteTask);
 

@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 import projectRoutes from "./routes/project.route.js";
 import authRoutes from "./routes/auth.route.js";
 import taskRoutes from "./routes/task.route.js";
+import statisticRoutes from "./routes/statistic.route.js";
 
 dotenv.config();
 
@@ -16,6 +17,7 @@ app.use(express.json());
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/projects", projectRoutes);
 app.use("/api/v1/tasks", taskRoutes);
+app.use("/api/v1/statistics", statisticRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server đang chạy tại http://localhost:${PORT}`);

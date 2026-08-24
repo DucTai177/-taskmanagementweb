@@ -14,12 +14,9 @@ const router = express.Router();
 
 router.post("/", verifyToken, createProject);
 router.get("/", verifyToken, getProjects);
-router.post("/", createProject);
-router.get("/", getProjects);
 router.get("/:id", getProjectById);
 router.put("/:id", updateProject);
 router.delete("/:id", deleteProject);
-
 router.post("/:id/members", verifyToken, addMember);
 router.delete("/:id/members/:userId", verifyToken, removeMember);
 

@@ -72,7 +72,7 @@ export const createTask = async (req, res) => {
         projectId: Number(projectId),
         title,
         description,
-        status: status || "TODO",
+        status: status || "DOING",
         priority: priority || "MEDIUM",
         dueDate: dueDate ? new Date(dueDate) : null,
         createdById: currentUserId,

@@ -1,5 +1,5 @@
 import prisma from "../db.js";
-//tạo tài khoản
+//tạo dự án
 export const createProject = async (req, res) => {
   try {
     const { name, description, startDate, endDate } = req.body;
@@ -42,33 +42,46 @@ export const createProject = async (req, res) => {
 
 export const getProjects = async (req, res) => {
   try {
-    const { userId } = req.query; // Nhận ?userId=... nếu có truyền
-
-    // Nếu có truyền userId thì chỉ lấy các dự án user đó tham gia
-    const whereCondition = userId
-      ? {
-          members: {
-            some: {
-              userId: Number(userId),
-            },
-          },
-        }
-      : {};
+    const currentUserId = req.user.id; // Lấy ID của user từ token
 
     const projects = await prisma.project.findMany({
-      where: whereCondition,
+      where: {
+        OR: [
+          { ownerId: currentUserId }, // 1. User là Chủ sở hữu
+          {
+            members: {
+              some: {
+                userId: currentUserId, // 2. Hoặc User nằm trong danh sách thành viên
+              },
+            },
+          },
+        ],
+      },
       include: {
         owner: {
-          select: { id: true, fullName: true, email: true },
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+          },
         },
         members: {
           include: {
-            user: { select: { id: true, fullName: true, email: true } },
+            user: {
+              select: {
+                id: true,
+                fullName: true,
+                email: true,
+              },
+            },
           },
         },
         _count: {
-          select: { tasks: true }, // Đếm tổng số task hiện có trong dự án
+          select: { tasks: true },
         },
+      },
+      orderBy: {
+        createdAt: "desc",
       },
     });
 
@@ -85,7 +98,6 @@ export const getProjects = async (req, res) => {
     });
   }
 };
-
 // lấy dự án theo id
 
 export const getProjectById = async (req, res) => {
@@ -423,9 +435,8 @@ export const getProjectDashboard = async (req, res) => {
     // Đếm theo trạng thái
     const statusCounts = {
       TODO: 0,
-      INPROGRESS: 0,
+      DOING: 0,
       DONE: 0,
-      CANCELLED: 0,
     };
 
     // Đếm theo mức độ ưu tiên

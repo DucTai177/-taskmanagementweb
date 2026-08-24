@@ -39,9 +39,8 @@ export const getProjectStatistics = async (req, res) => {
     // Khởi tạo bộ đếm trạng thái
     const statusCounts = {
       TODO: 0,
-      INPROGRESS: 0,
+      DOING: 0,
       DONE: 0,
-      CANCELLED: 0,
     };
 
     let overdueTasks = 0;
